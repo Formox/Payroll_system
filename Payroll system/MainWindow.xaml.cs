@@ -271,7 +271,7 @@ namespace Payroll_system
         // --- Works Tab: ЗАГРУЗИТЬ ИЗ ФАЙЛА (Импорт) ---
         private void LoadBtn_Click(object sender, RoutedEventArgs e)
         {
-            OpenFileDialog openFileDialog = new OpenFileDialog
+            var openFileDialog = new OpenFileDialog
             {
                 Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
             };
@@ -280,10 +280,10 @@ namespace Payroll_system
             {
                 try
                 {
-                    string jsonString = File.ReadAllText(openFileDialog.FileName);
-                    var loadedWorks = JsonSerializer.Deserialize<List<Work>>(jsonString);
+                    string json = File.ReadAllText(openFileDialog.FileName);
 
-                    if (loadedWorks != null && loadedWorks.Any())
+                    // Настройки десериализации (должны совпадать с тем, как сохраняли)
+                    var options = new JsonSerializerOptions
                     {
                         ReferenceHandler = ReferenceHandler.Preserve,
                         WriteIndented = true
@@ -315,20 +315,57 @@ namespace Payroll_system
                             .Include(e => e.CompletedWorks)
                             .FirstOrDefault(e => e.LastName == loadedEmp.LastName && e.FirstName == loadedEmp.FirstName);
 
-                        // 2. Добавляем новые работы
-                        _context.Works.AddRange(loadedWorks);
-                        _context.SaveChanges();
+                        Employee targetEmployee;
 
-                        // 3. Обновляем коллекцию WPF для отображения
-                        Works.Clear();
-                        foreach (var work in loadedWorks)
+                        if (dbEmp != null)
                         {
-                            Works.Add(work);
+                            // Сотрудник уже есть — используем его
+                            targetEmployee = dbEmp;
+                        }
+                        else
+                        {
+                            // Сотрудника нет — добавляем как нового
+                            // ВАЖНО: Сбрасываем Id в 0, чтобы БД присвоила новый
+                            loadedEmp.Id = 0;
+
+                            // Очищаем работы при добавлении сотрудника, мы добавим их корректно ниже
+                            // (чтобы избежать конфликтов ID во вложенных объектах)
+                            var worksTemp = loadedEmp.CompletedWorks.ToList();
+                            loadedEmp.CompletedWorks = new List<CompletedWork>();
+
+                            _context.Employees.Add(loadedEmp);
+                            targetEmployee = loadedEmp;
+
+                            // Восстанавливаем список для обработки в цикле ниже
+                            foreach (var w in worksTemp) loadedEmp.CompletedWorks.Add(w);
+
+                            addedEmployees++;
                         }
 
-                        CalculateSummary();
-                        MessageBox.Show($"Данные успешно загружены из файла: {openFileDialog.FileName}. \nБаза данных обновлена.", "Загрузка завершена");
-                    }
+                        // --- ШАГ 2: Обработка выполненных работ ---
+
+                        // Создаем копию списка, так как будем модифицировать коллекцию
+                        var importedWorks = loadedEmp.CompletedWorks.ToList();
+
+                        foreach (var importedCompletedWork in importedWorks)
+                        {
+                            // Нам нужно найти реальный объект Work в нашей базе, соответствующий загруженному
+                            var workDescription = importedCompletedWork.WorkItem?.Description;
+
+                            if (string.IsNullOrEmpty(workDescription)) continue;
+
+                            // Ищем работу в кэше (Local) или в БД
+                            var dbWork = _context.Works.Local
+                                .FirstOrDefault(w => w.Description == workDescription);
+
+                            if (dbWork == null)
+                            {
+                                // Если такого вида работы нет вообще — создаем новый
+                                dbWork = importedCompletedWork.WorkItem;
+                                dbWork.Id = 0; // Сбрасываем ID, это новая работа
+                                _context.Works.Add(dbWork);
+                                addedWorks++;
+                            }
 
                             // --- ШАГ 3: Проверка на дубликат записи о работе ---
                             // Проверяем, не назначена ли уже эта работа этому сотруднику (те же часы, та же работа)
@@ -341,14 +378,39 @@ namespace Payroll_system
                                     cw.WorkItem != null &&
                                     cw.WorkItem.Description == dbWork.Description &&
                                     Math.Abs(cw.Hours - importedCompletedWork.Hours) < 0.001);
-                }
-                catch (JsonException ex)
-                {
-                    MessageBox.Show($"Ошибка десериализации (файл поврежден или имеет неверный формат): {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                            }
+
+                            if (!alreadyExists)
+                            {
+                                // Создаем новую запись связи "Сотрудник-Работа"
+                                var newRecord = new CompletedWork
+                                {
+                                    Id = 0, // Новый ID
+                                    Hours = importedCompletedWork.Hours,
+                                    Employee = targetEmployee, // Привязываем к правильному сотруднику
+                                    WorkItem = dbWork          // Привязываем к правильной работе
+                                };
+
+                                // Если список null (бывает при создании нового), инициализируем
+                                if (targetEmployee.CompletedWorks == null)
+                                    targetEmployee.CompletedWorks = new List<CompletedWork>();
+
+                                targetEmployee.CompletedWorks.Add(newRecord);
+                            }
+                        }
+                    }
+
+                    // 3. Сохраняем все изменения одним махом
+                    _context.SaveChanges();
+
+                    // 4. Обновляем экран (вызываем ваш метод загрузки)
+                    LoadDataFromDatabase();
+
+                    MessageBox.Show($"Данные успешно объединены!\nНовых сотрудников: {addedEmployees}\nНовых видов работ: {addedWorks}");
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Ошибка при загрузке данных: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"Ошибка при загрузке: {ex.Message}\n{ex.InnerException?.Message}");
                 }
             }
         }
