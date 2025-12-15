@@ -58,7 +58,7 @@
 
 1.  **Клонируйте** репозиторий:
     ```bash
-    git clone [АДРЕС ВАШЕГО РЕПОЗИТОРИЯ]
+    git clone [https://github.com/Formox/Payroll_system]
     ```
 2.  **Откройте** решение (`.sln`) в Visual Studio.
 3.  **Запустите** проект (F5).
