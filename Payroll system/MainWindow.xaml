@@ -1,0 +1,71 @@
+﻿<Window x:Class="Payroll_system.MainWindow" 
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Payroll System" Height="450" Width="800"
+        
+        
+        Loaded="Window_Loaded"
+        Closing="Window_Closing">
+
+
+    <Grid>
+        <TabControl>
+            <TabItem Header="Виды работ">
+                <DockPanel Margin="10">
+
+                    <StackPanel DockPanel.Dock="Right" Width="150" Margin="5">
+                        <Button Content="Добавить" Click="AddBtn_Click" Margin="0,5"/>
+                        <Button Content="Изменить" Click="EditBtn_Click" Margin="0,5"/>
+                        <Button Content="Удалить" Click="DeleteBtn_Click" Margin="0,5"/>
+                        <Separator Height="10"/>
+                        <Button Content="Сортировать" Click="SortBtn_Click" Margin="0,5"/>
+                        <Separator Height="10"/>
+                        <Button Content="Сохранить в файл" Click="SaveBtn_Click" Margin="0,5"/>
+                        <Button Content="Загрузить из файла" Click="LoadBtn_Click" Margin="0,5"/>
+                    </StackPanel>
+
+                    <DataGrid Name="dgWorks" AutoGenerateColumns="False" CanUserAddRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Тип" Binding="{Binding TypeDisplay}" Width="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Описание" Binding="{Binding Description}" Width="*"/>
+                            <DataGridTextColumn Header="Ставка (ч)" Binding="{Binding HourlyRate}" Width="80"/>
+                            <DataGridTextColumn Header="Стратегия" Binding="{Binding StrategyDisplay}" Width="120" IsReadOnly="True"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Сотрудники и зарплата">
+    <DockPanel Margin="10">
+        
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button Content="Добавить сотрудника" Click="AddEmployee_Click" Margin="5" Width="130"/>
+                        <Button Content="Изменить" Click="EditEmployee_Click" Width="100" Margin="5"/>
+                        <Button Content="Удалить сотрудника" Click="DeleteEmployee_Click" Margin="5" Width="130"/>
+            <Button Content="Назначить работу" Click="AssignWork_Click" Margin="5" Width="130"/>
+            <Button Content="Показать работы" Click="ShowEmployeeWorks_Click" Margin="5" Width="130"/>
+        </StackPanel>
+
+        <DataGrid Name="dgEmployees" AutoGenerateColumns="False" CanUserAddRows="False" 
+                  SelectionMode="Single" Height="200" DockPanel.Dock="Top">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Фамилия" Binding="{Binding LastName}" Width="*"/>
+                <DataGridTextColumn Header="Имя" Binding="{Binding FirstName}" Width="*"/>
+                <DataGridTextColumn Header="Должность" Binding="{Binding Position}" Width="*"/>
+                <DataGridTextColumn Header="Зарплата (ИТОГ)" Binding="{Binding TotalSalaryDisplay}" Width="150" IsReadOnly="True"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Margin="0,15,0,0" DockPanel.Dock="Bottom">
+            <TextBlock Text="Сводная информация по системе:" FontWeight="Bold" FontSize="14"/>
+            <TextBlock Name="txtTotalPayments" Margin="0,5" Text="Общая сумма выплат: 0.00 руб."/>
+            <TextBlock Name="txtAverageRate" Margin="0,5" Text="Средняя ставка по всем видам работ: 0.00 руб./час"/>
+        </StackPanel>
+
+    </DockPanel>
+</TabItem>
+
+        </TabControl>
+    </Grid>
+</Window>
