@@ -285,8 +285,35 @@ namespace Payroll_system
 
                     if (loadedWorks != null && loadedWorks.Any())
                     {
-                        // 1. Очищаем старые данные из БД, чтобы избежать конфликтов ID
-                        _context.Works.RemoveRange(_context.Works);
+                        ReferenceHandler = ReferenceHandler.Preserve,
+                        WriteIndented = true
+                    };
+
+                    // 1. Десериализуем данные во ВРЕМЕННЫЙ список
+                    var loadedEmployees = JsonSerializer.Deserialize<List<Employee>>(json, options);
+
+                    if (loadedEmployees == null || loadedEmployees.Count == 0)
+                    {
+                        MessageBox.Show("Файл пуст или имеет неверный формат.");
+                        return;
+                    }
+
+                    // Загружаем все существующие работы в память для быстрого поиска, чтобы не создавать дубликаты
+                    // Используем Local, чтобы видеть и только что добавленные, но еще не сохраненные работы
+                    _context.Works.Load();
+                    var existingWorksCache = _context.Works.Local.ToObservableCollection();
+
+                    int addedEmployees = 0;
+                    int addedWorks = 0;
+
+                    foreach (var loadedEmp in loadedEmployees)
+                    {
+                        // --- ШАГ 1: Поиск или создание Сотрудника ---
+
+                        // Ищем сотрудника в БД по ФИО
+                        var dbEmp = _context.Employees
+                            .Include(e => e.CompletedWorks)
+                            .FirstOrDefault(e => e.LastName == loadedEmp.LastName && e.FirstName == loadedEmp.FirstName);
 
                         // 2. Добавляем новые работы
                         _context.Works.AddRange(loadedWorks);
@@ -302,6 +329,18 @@ namespace Payroll_system
                         CalculateSummary();
                         MessageBox.Show($"Данные успешно загружены из файла: {openFileDialog.FileName}. \nБаза данных обновлена.", "Загрузка завершена");
                     }
+
+                            // --- ШАГ 3: Проверка на дубликат записи о работе ---
+                            // Проверяем, не назначена ли уже эта работа этому сотруднику (те же часы, та же работа)
+                            // Для нового сотрудника (targetEmployee.Id == 0) этот список пока пуст в БД, но может быть заполнен в памяти
+                            bool alreadyExists = false;
+
+                            if (targetEmployee.CompletedWorks != null)
+                            {
+                                alreadyExists = targetEmployee.CompletedWorks.Any(cw =>
+                                    cw.WorkItem != null &&
+                                    cw.WorkItem.Description == dbWork.Description &&
+                                    Math.Abs(cw.Hours - importedCompletedWork.Hours) < 0.001);
                 }
                 catch (JsonException ex)
                 {
